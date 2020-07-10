@@ -41,9 +41,17 @@ FONT = cv2.FONT_HERSHEY_PLAIN
 # Define a confidence threshold  for detections.
 conf_thresh = 0.5
 
-# initialize color map
-cmap = plt.get_cmap('tab20b')
-colors = [cmap(i)[:3] for i in np.linspace(0, 1, 20)]
+cmaps = ['Purples', 'Blues', 'Greens', 'Oranges', 'Reds', 'Greys',
+         'YlOrBr', 'YlOrRd', 'OrRd', 'PuRd', 'RdPu', 'BuPu',
+         'GnBu', 'PuBu', 'YlGnBu', 'PuBuGn', 'BuGn', 'YlGn']
+colors = np.zeros((80, 20, 3))
+n = -0.14
+for i in range(len(classes)):
+    if i % 18 == 0:
+        n += 0.14
+    # initialize color map
+    cmap = plt.get_cmap(cmaps[i % 18])
+    colors[i] = [cmap(j)[:3] for j in np.linspace(0.4+n, 0.44+n, 20)]
 
 # Initialise a video capture object with the first camera.
 cap = cv2.VideoCapture(0)
@@ -118,7 +126,8 @@ while True:
             continue
         bbox = track.to_tlbr()
         class_name = track.get_class()
-        color = colors[int(track.track_id) % len(colors)]
+        class_id = classes.index(class_name)
+        color = colors[class_id, int(track.track_id) % 20]
         color = [i * 255 for i in color]
         cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
         cv2.rectangle(frame, (int(bbox[0]), int(bbox[1] - 30)),
