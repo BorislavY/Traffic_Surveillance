@@ -148,6 +148,8 @@ class Track:
         if self.state == TrackState.Tentative and self.hits >= self._n_init:
             self.state = TrackState.Confirmed
 
+        self.class_name = detection.get_class()
+
     def mark_missed(self):
         """Mark this track as missed (no association at the current time step).
         """
