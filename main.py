@@ -41,17 +41,12 @@ FONT = cv2.FONT_HERSHEY_PLAIN
 # Define a confidence threshold  for detections.
 conf_thresh = 0.5
 
-cmaps = ['Purples', 'Blues', 'Greens', 'Oranges', 'Reds', 'Greys',
-         'YlOrBr', 'YlOrRd', 'OrRd', 'PuRd', 'RdPu', 'BuPu',
-         'GnBu', 'PuBu', 'YlGnBu', 'PuBuGn', 'BuGn', 'YlGn']
-colors = np.zeros((80, 20, 3))
-n = -0.14
+cmap = plt.get_cmap("gist_rainbow")
+
+colors = np.zeros((80, 3, 3))
+n = 1/80
 for i in range(len(classes)):
-    if i % 18 == 0:
-        n += 0.14
-    # initialize color map
-    cmap = plt.get_cmap(cmaps[i % 18])
-    colors[i] = [cmap(j)[:3] for j in np.linspace(0.4+n, 0.44+n, 20)]
+    colors[i] = [cmap(j)[:3] for j in np.linspace(0+n*i, n+n*i, 3)]
 
 # Initialise a video capture object with the first camera.
 cap = cv2.VideoCapture(0)
@@ -127,30 +122,13 @@ while True:
         bbox = track.to_tlbr()
         class_name = track.get_class()
         class_id = classes.index(class_name)
-        color = colors[class_id, int(track.track_id) % 20]
+        color = colors[class_id, int(track.track_id) % 3]
         color = [i * 255 for i in color]
         cv2.rectangle(frame, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), color, 2)
         cv2.rectangle(frame, (int(bbox[0]), int(bbox[1] - 30)),
                       (int(bbox[0]) + (len(class_name) + len(str(track.track_id))) * 17, int(bbox[1])), color, -1)
         cv2.putText(frame, class_name + "-" + str(track.track_id), (int(bbox[0]), int(bbox[1] - 10)), 0, 0.75,
                     (255, 255, 255), 2)
-
-    # # Iterate through the detected boxes.
-    # for i in range(len(boxes)):
-    #     # If the box remained after NMS.
-    #     if i in indexes:
-    #         # Extract the coordinates of the box.
-    #         x, y, w, h = boxes[i]
-    #         # Extract the class label from the class ID.
-    #         label = str(classes[class_ids[i]])
-    #         # Extract the confidence for the detected class.
-    #         confidence = confidences[i]
-    #         # Get the color for that class.
-    #         color = colors[class_ids[i]]
-    #         # Draw the box.
-    #         cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
-    #         # Display the class label and the confidence inside the box.
-    #         cv2.putText(frame, label + " " + str(round(confidence, 2)), (x, y + 30), FONT, 2, color, 2)
 
     # Calculate the elapsed time since starting the loop.
     elapsed_time = time.time() - time_start
