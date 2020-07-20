@@ -21,6 +21,10 @@ class Tracker:
         Number of consecutive detections before the track is confirmed. The
         track state is set to `Deleted` if a miss occurs within the first
         `n_init` frames.
+    n_names_smoothing : int
+        Number of frames for class names smoothing. The class name detected
+        most often in the last n frames for each track will be considered
+        the class of that track.
 
     Attributes
     ----------
@@ -30,6 +34,8 @@ class Tracker:
         Maximum number of missed misses before a track is deleted.
     n_init : int
         Number of frames that a track remains in initialization phase.
+    n_names_smoothing : int
+        Number of frames for class names smoothing.
     kf : kalman_filter.KalmanFilter
         A Kalman filter to filter target trajectories in image space.
     tracks : List[Track]
@@ -37,11 +43,12 @@ class Tracker:
 
     """
 
-    def __init__(self, metric, max_iou_distance=0.7, max_age=30, n_init=3):
+    def __init__(self, metric, max_iou_distance=0.7, max_age=30, n_init=3, n_names_smoothing=1):
         self.metric = metric
         self.max_iou_distance = max_iou_distance
         self.max_age = max_age
         self.n_init = n_init
+        self.n_names_smoothing = n_names_smoothing
 
         self.kf = kalman_filter.KalmanFilter()
         self.tracks = []
@@ -135,5 +142,5 @@ class Tracker:
         class_name = detection.get_class()
         self.tracks.append(Track(
             mean, covariance, self._next_id, self.n_init, self.max_age,
-            detection.feature, class_name))
+            detection.feature, class_name, self.n_names_smoothing))
         self._next_id += 1

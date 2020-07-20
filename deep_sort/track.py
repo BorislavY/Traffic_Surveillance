@@ -40,6 +40,10 @@ class Track:
     feature : Optional[ndarray]
         Feature vector of the detection this track originates from. If not None,
         this feature is added to the `features` cache.
+    n_name_smoothing : int
+        Number of frames for class name smoothing. The class name detected
+        most often in the last n frames of a track will be considered
+        the class of that track.
 
     Attributes
     ----------
@@ -60,11 +64,13 @@ class Track:
     features : List[ndarray]
         A cache of features. On each measurement update, the associated feature
         vector is added to this list.
+    n_name_smoothing : int
+        Number of frames for class name smoothing.
 
     """
 
     def __init__(self, mean, covariance, track_id, n_init, max_age,
-                 feature=None, class_name=None, n_frames=15):
+                 feature=None, class_name=None, n_name_smoothing=1):
         self.mean = mean
         self.covariance = covariance
         self.track_id = track_id
@@ -80,7 +86,7 @@ class Track:
         self._n_init = n_init
         self._max_age = max_age
 
-        self.n_frames = n_frames
+        self.n_name_smoothing = n_name_smoothing
         self.class_name = class_name
         self.prev_classes = [class_name]
 
@@ -152,7 +158,7 @@ class Track:
             self.state = TrackState.Confirmed
 
         self.class_name = detection.get_class()
-        if len(self.prev_classes) >= self.n_frames:
+        if len(self.prev_classes) >= self.n_name_smoothing:
             self.prev_classes.pop(-1)
         self.prev_classes.insert(0, self.class_name)
         self.class_name = max(set(self.prev_classes), key=self.prev_classes.count)
