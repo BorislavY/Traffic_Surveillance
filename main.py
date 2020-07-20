@@ -16,12 +16,20 @@ WRITE_PATH = 'results.avi'
 FONT = cv2.FONT_HERSHEY_COMPLEX
 FONT_SCALE = 0.75
 FONT_THICKNESS = 2
-# Define a confidence threshold  for detections.
+# Define a confidence threshold for box detections and a threshold for non-max suppression.
 CONF_THRESH = 0.4
+NMS_THRESH = 0.4
+# Define the max cosine distance and budget of the nearest neighbor distance metric used to associate the
+# appearance feature vectors of new detections and existing tracks.
+MAX_COSINE_DISTANCE = 0.5
+NN_BUDGET = None
+# Define the number of frames for class name smoothing (the class name detected most
+# often in the last N frames will be displayed above the bounding box for each object)
+N_NAMES_SMOOTHING = 30
+
 
 # Load the YOLOv3 model with OpenCV.
 net = cv2.dnn.readNet("yolov3/yolov3.weights", "yolov3/yolov3.cfg")
-
 # Get the names of all layers in the network.
 layer_names = net.getLayerNames()
 # Extract the names of the output layers by finding their indices in layer_names.
@@ -33,19 +41,14 @@ classes = []
 with open("yolov3/coco.names", "r") as f:
     classes = [line.strip() for line in f.readlines()]
 
-# Initialise a random color to represent each class.
-colors = np.random.uniform(0, 255, size=(len(classes), 3))
-
-# Definition of the parameters
-max_cosine_distance = 0.5
-nn_budget = None
-
-# Initialize deep sort
+# Initialise the encoder used to create appearance feature vectors of detections.
 encoder = gdet.create_box_encoder("deep_sort/mars-small128.pb", batch_size=1)
-metric = nn_matching.NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-tracker = Tracker(metric)
+# Initialise the nearest neighbor distance metric.
+metric = nn_matching.NearestNeighborDistanceMetric("cosine", MAX_COSINE_DISTANCE, NN_BUDGET)
+# Initialise a Tracker object with the defined metric and frames of class name smoothing.
+tracker = Tracker(metric, n_names_smoothing=N_NAMES_SMOOTHING)
 
-# If the video path is not empty, initialise a video capture object with that video.
+# If the video path is not empty, initialise a video capture object with that path.
 if VIDEO_PATH != '':
     cap = cv2.VideoCapture(VIDEO_PATH)
 # Otherwise, initialise a video capture object with the first camera.
@@ -61,12 +64,21 @@ if WRITE_PATH != '':
     codec = cv2.VideoWriter_fourcc(*'XVID')
     output = cv2.VideoWriter(WRITE_PATH, codec, fps, (width, height))
 
+# Initialise a color map.
 cmap = plt.get_cmap("gist_rainbow")
-
+# Initialise a colors matrix which dimensions (classes, colors per class, color channels)
 colors = np.zeros((80, 3, 3))
+# Define the step size used to split the colormap into 80 regions.
 n = 1/80
+# Iterate over the number of classes.
 for i in range(len(classes)):
+    # Grab 3 colors from the i-th region in the color map and store them as the i-th entry in the color matrix.
     colors[i] = [cmap(j)[:3] for j in np.linspace(0+n*i, n+n*i, 3)]
+# Scale the values in the colors matrix to be between 0 and 255.
+colors *= 255
+# Shuffle the first dimension of the color matrix, to avoid having very similar colors for similar classes that often
+# appear together. This is done because the classes in the coco dataset are sorted by similarity.
+np.random.shuffle(colors)
 
 # Initialise a frame counter and get the current time for FPS calculation purposes.
 frame_id = 0
@@ -81,7 +93,7 @@ while True:
     # Add 1 to the frame count every time a frame is read.
     frame_id += 1
 
-    # Pre-process the frame by applying the same scaling used when training the model, resizing to the size
+    # Pre-process the frame by applying the same scaling used when training the YOLO model, resizing to the size
     # expected by this particular YOLOv3 model, and swapping from BGR (used by OpenCV) to RGB (used by the model).
     blob = cv2.dnn.blobFromImage(frame, 1 / 255, (416, 416), swapRB=True)
 
@@ -89,9 +101,8 @@ while True:
     net.setInput(blob)
     outs = net.forward(output_layers)
 
-    # Initialise arrays for storing confidence, class ID and coordinate values for detected boxes.
+    # Initialise arrays for storing confidence, coordinate values and class names for detected boxes.
     confidences = []
-    class_ids = []
     boxes = []
     names = []
 
@@ -108,45 +119,51 @@ while True:
             if confidence > CONF_THRESH:
                 # Get the shape of the unprocessed frame.
                 height, width, channels = frame.shape
-                # Use the detected box ratios to get box coordinates which apply to the input image.
+                # Use the predicted box ratios to get box coordinates which apply to the input image.
                 center_x = int(detection[0] * width)
                 center_y = int(detection[1] * height)
                 w = int(detection[2] * width)
                 h = int(detection[3] * height)
                 # Use the center, width and height coordinates to calculate the coordinates for the top left
-                # point of the box, which is required for drawing boxes with OpenCV.
+                # point of the box, which is the required format for Deep SORT.
                 x = int(center_x - w/2)
                 y = int(center_y - h/2)
 
                 # Populate the arrays with the information for this box.
                 confidences.append(float(confidence))
-                class_ids.append(class_id)
                 boxes.append([x, y, w, h])
                 names.append(str(classes[class_id]))
 
     # Apply non-max suppression to get rid of overlapping boxes.
-    indexes = cv2.dnn.NMSBoxes(boxes, confidences, CONF_THRESH, 0.4)
+    indexes = cv2.dnn.NMSBoxes(boxes, confidences, CONF_THRESH, NMS_THRESH)
     NMSBoxes = [boxes[int(i)] for i in indexes]
 
-    names = np.array(names)
+    # Compute appearance features of the detected boxes.
     features = encoder(frame, NMSBoxes)
+    # Create a list of detection objects.
     detections = [Detection(bbox, score, class_name, feature) for bbox, score, class_name, feature in
-                  zip(NMSBoxes, confidences, names, features)]
+                  zip(np.array(NMSBoxes), np.array(confidences), np.array(names), np.array(features))]
 
-    # Call the tracker
+    # Predict the current state of existing tracks using a Kalman filter.
     tracker.predict()
+    # Update the tracker by using the current detections and predictions from the Kalman filter.
     tracker.update(detections)
 
+    # Iterate over existing tracks in the tracker.
     for track in tracker.tracks:
+        # If the current track is not confirmed or the number of frames since the last measurement update of the track
+        # are more than one, skip this track. (Only confirmed tracks for the current frame pass through)
         if not track.is_confirmed() or track.time_since_update > 1:
             continue
-        # Get the box from the detection object in the format (min x, min y, max x, max y)
+        # Get the bounding box from the detection object in the format (min x, min y, max x, max y)
         tl_x, tl_y, br_x, br_y = track.to_tlbr().astype(int)
+        # Get the class name for the current track.
         class_name = track.get_class()
+        # Find the class ID of the track.
         class_id = classes.index(class_name)
+        # Select one of the three colors associated with that class based on the track ID.
         color = colors[class_id, int(track.track_id) % 3]
-        color = [i * 255 for i in color]
-
+        # Draw the bounding box around the object.
         cv2.rectangle(frame, (tl_x, tl_y), (br_x, br_y), color, 2)
 
         # Define the text to be displayed above the main box.
