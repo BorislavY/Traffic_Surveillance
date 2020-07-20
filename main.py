@@ -25,7 +25,7 @@ MAX_COSINE_DISTANCE = 0.5
 NN_BUDGET = None
 # Define the number of frames for class name smoothing (the class name detected most
 # often in the last N frames will be displayed above the bounding box for each object)
-N_NAMES_SMOOTHING = 30
+N_NAMES_SMOOTHING = 60
 
 
 # Load the YOLOv3 model with OpenCV.
