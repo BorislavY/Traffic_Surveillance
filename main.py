@@ -8,16 +8,30 @@ from deep_sort import generate_detections as gdet
 import matplotlib.pyplot as plt
 
 
+def ccw(A,B,C):
+    return (C[1]-A[1]) * (B[0]-A[0]) > (B[1]-A[1]) * (C[0]-A[0])
+
+
+# Return true if line segments AB and CD intersect
+def intersect(A,B,C,D):
+    return ccw(A,C,D) != ccw(B,C,D) and ccw(A,B,C) != ccw(A,B,D)
+
+
+def onMouse(event, x, y, flags, param):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        print('x = %d, y = %d'%(x, y))
+
+
 # Path to the video file. Leave blank to use the webcam.
-VIDEO_PATH = 'test.mp4'
+VIDEO_PATH = 'traffic.mp4'
 # Where to write the resulting video. Leave blank to not write a video.
 WRITE_PATH = 'results.avi'
 # Define a font, scale and thickness to be used when displaying class names.
 FONT = cv2.FONT_HERSHEY_COMPLEX
-FONT_SCALE = 0.75
-FONT_THICKNESS = 2
+FONT_SCALE = 0.5
+FONT_THICKNESS = 1
 # Define a confidence threshold for box detections and a threshold for non-max suppression.
-CONF_THRESH = 0.4
+CONF_THRESH = 0.5
 NMS_THRESH = 0.4
 # Define the max cosine distance and budget of the nearest neighbor distance metric used to associate the
 # appearance feature vectors of new detections and existing tracks.
@@ -27,6 +41,16 @@ NN_BUDGET = None
 # often in the last N frames will be displayed above the bounding box for each object)
 N_NAMES_SMOOTHING = 60
 
+
+count_lines = [[(620, 155), (499, 349)],
+               [(296, 55), (613, 141)],
+               [(47, 137), (239, 64)],
+               [(470, 379), (27, 149)]]
+
+road_names = ['Road 1',
+              'Road 2',
+              'Road 3',
+              'Road 4']
 
 # Load the YOLOv3 model with OpenCV.
 net = cv2.dnn.readNet("yolov3/yolov3.weights", "yolov3/yolov3.cfg")
@@ -93,6 +117,9 @@ while True:
     # Add 1 to the frame count every time a frame is read.
     frame_id += 1
 
+    # Get the shape of the unprocessed frame.
+    height, width, channels = frame.shape
+
     # Pre-process the frame by applying the same scaling used when training the YOLO model, resizing to the size
     # expected by this particular YOLOv3 model, and swapping from BGR (used by OpenCV) to RGB (used by the model).
     blob = cv2.dnn.blobFromImage(frame, 1 / 255, (416, 416), swapRB=True)
@@ -117,8 +144,6 @@ while True:
             confidence = scores[class_id]
             # If that score is higher than the set threshold, execute the code below.
             if confidence > CONF_THRESH:
-                # Get the shape of the unprocessed frame.
-                height, width, channels = frame.shape
                 # Use the predicted box ratios to get box coordinates which apply to the input image.
                 center_x = int(detection[0] * width)
                 center_y = int(detection[1] * height)
@@ -155,6 +180,9 @@ while True:
         # are more than one, skip this track. (Only confirmed tracks for the current frame pass through)
         if not track.is_confirmed() or track.time_since_update > 1:
             continue
+        # If the class is not one of the ones we are interested in, skip this track.
+        if not track.get_class() in ('car', 'motorbike', 'bus', 'truck'):
+            continue
         # Get the bounding box from the detection object in the format (min x, min y, max x, max y)
         tl_x, tl_y, br_x, br_y = track.to_tlbr().astype(int)
         # Get the class name for the current track.
@@ -175,6 +203,43 @@ while True:
         # Draw the text on top of the box.
         cv2.putText(frame, text, (tl_x, tl_y - 10), FONT, FONT_SCALE, (255, 255, 255), FONT_THICKNESS)
 
+        '''
+        If the line formed by the centroid where the track was last detected and where it is currently detected
+        intersects with the predefined lines for counting, and the track hasn't been counted for passing this line
+        before, then count the track passing this line.
+        
+        Have a function in the track which if given a pass through line for the first time logs that as "from"
+        and when given a pass through a different line, logs that as "to".
+        
+        Just log to CSV file and display detections over a black box at the bottom right.
+        '''
+
+        for i in range(len(count_lines)):
+            if intersect(count_lines[i][0], count_lines[i][1], track.line[0], track.line[1]):
+                if road_names[i] in (track.approach, track.exit):
+                    continue
+                track.passed_line(road_names[i])
+                if track.exit == '':
+                    # Draw a filled box where the detections will be displayed.
+                    cv2.rectangle(frame, (width - 150, height - 20), (width, height), (1, 1, 1), -1)
+                    text = track.class_name + str(track.track_id) + " Entry: " + track.approach
+                    # Draw the text on top of the box.
+                    cv2.putText(frame, text, (width - 150, height - 5), FONT, FONT_SCALE, (255, 255, 255),
+                                FONT_THICKNESS)
+                else:
+                    # Draw a filled box where the detections will be displayed.
+                    cv2.rectangle(frame, (width - 150, height - 20), (width, height), (1, 1, 1), -1)
+                    text = track.class_name + str(track.track_id) + " Exit: " + track.exit
+                    # Draw the text on top of the box.
+                    cv2.putText(frame, text, (width - 150, height - 5), FONT, FONT_SCALE, (255, 255, 255),
+                                FONT_THICKNESS)
+
+
+
+    for i in range(len(count_lines)):
+        cv2.line(frame, count_lines[i][0], count_lines[i][1], (200, 200, 0), 2)
+        cv2.putText(frame, str(i + 1), count_lines[i][0], FONT, FONT_SCALE, (255, 255, 255), FONT_THICKNESS)
+
     # If the write path is not blank, write the frame to the output video.
     if WRITE_PATH != '':
         output.write(frame)
@@ -186,7 +251,9 @@ while True:
     # Display the FPS at the top left corner.
     cv2.putText(frame, "FPS: " + str(round(fps, 2)), (8, 30), FONT, FONT_SCALE, (0, 0, 0), FONT_THICKNESS)
     # Show the frame.
-    cv2.imshow("Camera", frame)
+    cv2.imshow("Video", frame)
+    # Display mouse coordinates in the console when clicking on the video. Useful for determining line coordinates.
+    cv2.setMouseCallback('Video', onMouse)
     # Wait at least 1ms for key event and record the pressed key.
     key = cv2.waitKey(1)
     # If the pressed key is ESC (27), break the loop.

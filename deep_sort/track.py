@@ -90,6 +90,11 @@ class Track:
         self.class_name = class_name
         self.prev_classes = [class_name]
 
+        self.line = (0, 0), (0, 0)
+
+        self.approach = ''
+        self.exit = ''
+
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
         width, height)`.
@@ -148,6 +153,11 @@ class Track:
             The associated detection.
 
         """
+
+        tl_x, tl_y, w, h = self.to_tlwh()
+        x_prev = tl_x + w/2
+        y_prev = tl_y + h/2
+
         self.mean, self.covariance = kf.update(
             self.mean, self.covariance, detection.to_xyah())
         self.features.append(detection.feature)
@@ -162,6 +172,12 @@ class Track:
             self.prev_classes.pop(-1)
         self.prev_classes.insert(0, self.class_name)
         self.class_name = max(set(self.prev_classes), key=self.prev_classes.count)
+
+        tl_x, tl_y, w, h = self.to_tlwh()
+        x_current = tl_x + w/2
+        y_current = tl_y + h/2
+
+        self.line = (int(x_prev), int(y_prev)), (int(x_current), int(y_current))
 
     def mark_missed(self):
         """Mark this track as missed (no association at the current time step).
@@ -183,3 +199,12 @@ class Track:
     def is_deleted(self):
         """Returns True if this track is dead and should be deleted."""
         return self.state == TrackState.Deleted
+
+    def passed_line(self, line_name):
+        if self.approach == '':
+            self.approach = line_name
+            return
+        elif self.exit == '':
+            self.exit = line_name
+            return
+
