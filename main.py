@@ -108,6 +108,8 @@ np.random.shuffle(colors)
 frame_id = 0
 time_start = time.time()
 
+log_text = ""
+
 while True:
     # Read the current frame from the camera.
     _, frame = cap.read()
@@ -220,21 +222,15 @@ while True:
                     continue
                 track.passed_line(road_names[i])
                 if track.exit == '':
-                    # Draw a filled box where the detections will be displayed.
-                    cv2.rectangle(frame, (width - 150, height - 20), (width, height), (1, 1, 1), -1)
-                    text = track.class_name + str(track.track_id) + " Entry: " + track.approach
-                    # Draw the text on top of the box.
-                    cv2.putText(frame, text, (width - 150, height - 5), FONT, FONT_SCALE, (255, 255, 255),
-                                FONT_THICKNESS)
+                    log_text = "{} {} entered from {}".format(track.class_name, track.track_id, track.approach)
                 else:
-                    # Draw a filled box where the detections will be displayed.
-                    cv2.rectangle(frame, (width - 150, height - 20), (width, height), (1, 1, 1), -1)
-                    text = track.class_name + str(track.track_id) + " Exit: " + track.exit
-                    # Draw the text on top of the box.
-                    cv2.putText(frame, text, (width - 150, height - 5), FONT, FONT_SCALE, (255, 255, 255),
-                                FONT_THICKNESS)
+                    log_text = "{} {} exited from {}".format(track.class_name, track.track_id, track.exit)
 
-
+    # Draw a filled box where the detections will be displayed.
+    cv2.rectangle(frame, (width - 260, height - 20), (width, height), (1, 1, 1), -1)
+    # Draw the text on top of the box.
+    cv2.putText(frame, log_text, (width - 255, height - 5), FONT, FONT_SCALE, (255, 255, 255),
+                FONT_THICKNESS)
 
     for i in range(len(count_lines)):
         cv2.line(frame, count_lines[i][0], count_lines[i][1], (200, 200, 0), 2)
