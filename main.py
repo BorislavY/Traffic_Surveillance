@@ -9,13 +9,60 @@ import matplotlib.pyplot as plt
 import csv
 
 
-def ccw(A,B,C):
-    return (C[1]-A[1]) * (B[0]-A[0]) > (B[1]-A[1]) * (C[0]-A[0])
+def on_segment(p, q, r):
+    if r[0] <= max(p[0], q[0]) and r[0] >= min(p[0], q[0]) and r[1] <= max(p[1], q[1]) and r[1] >= min(p[1], q[1]):
+        return True
+    return False
 
 
-# Return true if line segments AB and CD intersect
-def intersect(A,B,C,D):
-    return ccw(A,C,D) != ccw(B,C,D) and ccw(A,B,C) != ccw(A,B,D)
+def orientation(p, q, r):
+    val = ((q[1] - p[1]) * (r[0] - q[0])) - ((q[0] - p[0]) * (r[1] - q[1]))
+    if val == 0: return 0
+    return 1 if val > 0 else -1
+
+
+def intersects(seg1, seg2):
+    p1, q1 = seg1
+    p2, q2 = seg2
+
+    o1 = orientation(p1, q1, p2)
+    o2 = orientation(p1, q1, q2)
+    o3 = orientation(p2, q2, p1)
+    o4 = orientation(p2, q2, q1)
+
+    if o1 != o2 and o3 != o4:
+        return True
+
+    if o1 == 0 and on_segment(p1, q1, p2):
+        return True
+
+    if o2 == 0 and on_segment(p1, q1, q2):
+        return True
+
+    if o3 == 0 and on_segment(p2, q2, p1):
+        return True
+
+    if o4 == 0 and on_segment(p2, q2, q1):
+        return True
+
+    return False
+
+
+def scale(line, factor):
+    t0 = 0.5 * (1.0-factor)
+    t1 = 0.5 * (1.0+factor)
+
+    x_p1 = line[0][0]
+    y_p1 = line[0][1]
+    x_p2 = line[1][0]
+    y_p2 = line[1][1]
+
+    x1 = x_p1 + (x_p2 - x_p1) * t0
+    y1 = y_p1 + (y_p2 - y_p1) * t0
+    x2 = x_p1 + (x_p2 - x_p1) * t1
+    y2 = y_p1 + (y_p2 - y_p1) * t1
+
+    return (int(x1), int(y1)), (int(x2), int(y2))
 
 
 def onMouse(event, x, y, flags, param):
@@ -217,12 +264,13 @@ while True:
         Have a function in the track which if given a pass through line for the first time logs that as "from"
         and when given a pass through a different line, logs that as "to".
         
-        It doesn't always count correctly.
-        Find a way to not display boxes in captures.
+        It doesn't count cars whose bounding boxes disappear for a bit.
         '''
 
+        scaled_line = scale(track.line, 5)
+
         for i in range(len(count_lines)):
-            if intersect(count_lines[i][0], count_lines[i][1], track.line[0], track.line[1]):
+            if intersects(count_lines[i], scaled_line):
                 if road_names[i] in (track.approach, track.exit):
                     continue
                 track.passed_line(road_names[i])
@@ -230,10 +278,12 @@ while True:
                     log_text = "{} {} entered from {}".format(class_name, track.track_id, track.approach)
                 else:
                     log_text = "{} {} exited from {}".format(class_name, track.track_id, track.exit)
-                    writer.writerow({'Id': class_id, 'Type': class_name, 'From': track.approach, 'Towards': track.exit})
+                    writer.writerow({'Id': track.track_id, 'Type': class_name, 'From': track.approach, 'Towards': track.exit})
                     _, clean_frame = cap.read()
                     cropped_img = clean_frame[tl_y:br_y, tl_x:br_x]
                     cv2.imwrite(r'counted_vehicles\{}_{}.png'.format(class_name, track.track_id), cropped_img)
+
+        cv2.line(frame, scaled_line[0], scaled_line[1], (255, 255, 255), 4)
 
     # Draw a filled box where the detections will be displayed.
     cv2.rectangle(frame, (width - 260, height - 20), (width, height), (1, 1, 1), -1)
