@@ -231,7 +231,8 @@ while True:
                 else:
                     log_text = "{} {} exited from {}".format(class_name, track.track_id, track.exit)
                     writer.writerow({'Id': class_id, 'Type': class_name, 'From': track.approach, 'Towards': track.exit})
-                    cropped_img = frame[tl_y:br_y, tl_x:br_x]
+                    _, clean_frame = cap.read()
+                    cropped_img = clean_frame[tl_y:br_y, tl_x:br_x]
                     cv2.imwrite(r'counted_vehicles\{}_{}.png'.format(class_name, track.track_id), cropped_img)
 
     # Draw a filled box where the detections will be displayed.
