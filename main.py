@@ -6,6 +6,7 @@ from deep_sort.detection import Detection
 from deep_sort.tracker import Tracker
 from deep_sort import generate_detections as gdet
 import matplotlib.pyplot as plt
+import csv
 
 
 def ccw(A,B,C):
@@ -39,18 +40,22 @@ MAX_COSINE_DISTANCE = 0.5
 NN_BUDGET = None
 # Define the number of frames for class name smoothing (the class name detected most
 # often in the last N frames will be displayed above the bounding box for each object)
-N_NAMES_SMOOTHING = 60
+N_NAMES_SMOOTHING = 30
 
+csvfile = open('results.csv', 'w', newline='')
+fieldnames = ['Id', 'Type', 'From', 'Towards']
+writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+writer.writeheader()
 
 count_lines = [[(620, 155), (499, 349)],
                [(296, 55), (613, 141)],
                [(47, 137), (239, 64)],
                [(470, 379), (27, 149)]]
 
-road_names = ['Road 1',
-              'Road 2',
-              'Road 3',
-              'Road 4']
+road_names = ['road 1',
+              'road 2',
+              'road 3',
+              'road 4']
 
 # Load the YOLOv3 model with OpenCV.
 net = cv2.dnn.readNet("yolov3/yolov3.weights", "yolov3/yolov3.cfg")
@@ -118,7 +123,6 @@ while True:
         break
     # Add 1 to the frame count every time a frame is read.
     frame_id += 1
-
     # Get the shape of the unprocessed frame.
     height, width, channels = frame.shape
 
@@ -213,7 +217,8 @@ while True:
         Have a function in the track which if given a pass through line for the first time logs that as "from"
         and when given a pass through a different line, logs that as "to".
         
-        Just log to CSV file and display detections over a black box at the bottom right.
+        It doesn't always count correctly.
+        Find a way to not display boxes in captures.
         '''
 
         for i in range(len(count_lines)):
@@ -222,9 +227,12 @@ while True:
                     continue
                 track.passed_line(road_names[i])
                 if track.exit == '':
-                    log_text = "{} {} entered from {}".format(track.class_name, track.track_id, track.approach)
+                    log_text = "{} {} entered from {}".format(class_name, track.track_id, track.approach)
                 else:
-                    log_text = "{} {} exited from {}".format(track.class_name, track.track_id, track.exit)
+                    log_text = "{} {} exited from {}".format(class_name, track.track_id, track.exit)
+                    writer.writerow({'Id': class_id, 'Type': class_name, 'From': track.approach, 'Towards': track.exit})
+                    cropped_img = frame[tl_y:br_y, tl_x:br_x]
+                    cv2.imwrite(r'counted_vehicles\{}_{}.png'.format(class_name, track.track_id), cropped_img)
 
     # Draw a filled box where the detections will be displayed.
     cv2.rectangle(frame, (width - 260, height - 20), (width, height), (1, 1, 1), -1)
@@ -259,3 +267,5 @@ while True:
 # Release the capture object and destroy all windows.
 cap.release()
 cv2.destroyAllWindows()
+
+csvfile.close()
