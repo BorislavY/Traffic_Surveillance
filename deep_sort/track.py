@@ -90,9 +90,12 @@ class Track:
         self.class_name = class_name
         self.prev_classes = [class_name]
 
+        # A line which will be defined by the centre of the track's bounding box from
+        # the previous update and from the current one.
         self.line = (0, 0), (0, 0)
-
+        # A string which will hold the name of the road that the vehicle approached from.
         self.approach = ''
+        # A string which will hold the name of the road that the vehicle exited from.
         self.exit = ''
 
     def to_tlwh(self):
@@ -145,6 +148,8 @@ class Track:
         """Perform Kalman filter measurement update step and update the feature
         cache.
 
+        Added code for updating the track line.
+
         Parameters
         ----------
         kf : kalman_filter.KalmanFilter
@@ -154,6 +159,7 @@ class Track:
 
         """
 
+        # Get the centre of the object's bounding box before performing an update.
         tl_x, tl_y, w, h = self.to_tlwh()
         x_prev = tl_x + w/2
         y_prev = tl_y + h/2
@@ -173,10 +179,13 @@ class Track:
         self.prev_classes.insert(0, self.class_name)
         self.class_name = max(set(self.prev_classes), key=self.prev_classes.count)
 
+        # Get the centre of the object's bounding box after performing an update.
         tl_x, tl_y, w, h = self.to_tlwh()
         x_current = tl_x + w/2
         y_current = tl_y + h/2
 
+        # Update the line which is defined by the centre of the track's bounding box from
+        # the previous update and from the current one.
         self.line = (int(x_prev), int(y_prev)), (int(x_current), int(y_current))
 
     def mark_missed(self):
@@ -201,6 +210,7 @@ class Track:
         return self.state == TrackState.Deleted
 
     def passed_line(self, line_name):
+        """Updates the names of the roads where the vehicle approached or exited from"""
         if self.approach == '':
             self.approach = line_name
             return

@@ -7,67 +7,7 @@ from deep_sort.tracker import Tracker
 from deep_sort import generate_detections as gdet
 import matplotlib.pyplot as plt
 import csv
-
-
-def on_segment(p, q, r):
-    if r[0] <= max(p[0], q[0]) and r[0] >= min(p[0], q[0]) and r[1] <= max(p[1], q[1]) and r[1] >= min(p[1], q[1]):
-        return True
-    return False
-
-
-def orientation(p, q, r):
-    val = ((q[1] - p[1]) * (r[0] - q[0])) - ((q[0] - p[0]) * (r[1] - q[1]))
-    if val == 0: return 0
-    return 1 if val > 0 else -1
-
-
-def intersects(seg1, seg2):
-    p1, q1 = seg1
-    p2, q2 = seg2
-
-    o1 = orientation(p1, q1, p2)
-    o2 = orientation(p1, q1, q2)
-    o3 = orientation(p2, q2, p1)
-    o4 = orientation(p2, q2, q1)
-
-    if o1 != o2 and o3 != o4:
-        return True
-
-    if o1 == 0 and on_segment(p1, q1, p2):
-        return True
-
-    if o2 == 0 and on_segment(p1, q1, q2):
-        return True
-
-    if o3 == 0 and on_segment(p2, q2, p1):
-        return True
-
-    if o4 == 0 and on_segment(p2, q2, q1):
-        return True
-
-    return False
-
-
-def scale(line, factor):
-    t0 = 0.5 * (1.0-factor)
-    t1 = 0.5 * (1.0+factor)
-
-    x_p1 = line[0][0]
-    y_p1 = line[0][1]
-    x_p2 = line[1][0]
-    y_p2 = line[1][1]
-
-    x1 = x_p1 + (x_p2 - x_p1) * t0
-    y1 = y_p1 + (y_p2 - y_p1) * t0
-    x2 = x_p1 + (x_p2 - x_p1) * t1
-    y2 = y_p1 + (y_p2 - y_p1) * t1
-
-    return (int(x1), int(y1)), (int(x2), int(y2))
-
-
-def onMouse(event, x, y, flags, param):
-    if event == cv2.EVENT_LBUTTONDOWN:
-        print('x = %d, y = %d'%(x, y))
+from utils import intersects, on_mouse, scale
 
 
 # Path to the video file. Leave blank to use the webcam.
@@ -88,21 +28,24 @@ NN_BUDGET = None
 # Define the number of frames for class name smoothing (the class name detected most
 # often in the last N frames will be displayed above the bounding box for each object)
 N_NAMES_SMOOTHING = 30
-
-csvfile = open('results.csv', 'w', newline='')
-fieldnames = ['Id', 'Type', 'From', 'Towards']
-writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-writer.writeheader()
-
-count_lines = [[(620, 155), (499, 349)],
-               [(296, 55), (613, 141)],
-               [(47, 137), (239, 64)],
-               [(470, 379), (27, 149)]]
-
-road_names = ['road 1',
+# Define the coordinates of the lines representing reach road's entry/exit.
+ROAD_LINES = [[(620, 155), (499, 349)],
+              [(296, 55), (613, 141)],
+              [(47, 137), (239, 64)],
+              [(470, 379), (27, 149)]]
+# Define the names of the respective roads from COUNT_LINES.
+ROAD_NAMES = ['road 1',
               'road 2',
               'road 3',
               'road 4']
+
+# Create and open a CSV file where information about the detections will be logged.
+csvfile = open('results.csv', 'w', newline='')
+# Define the names of the columns which will be used to make entries in each column.
+fieldnames = ['Id', 'Type', 'From', 'Towards']
+# Create a writer object for the CSV file with the fieldnames and write them on the first row.
+writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+writer.writeheader()
 
 # Load the YOLOv3 model with OpenCV.
 net = cv2.dnn.readNet("yolov3/yolov3.weights", "yolov3/yolov3.cfg")
@@ -142,7 +85,7 @@ if WRITE_PATH != '':
 
 # Initialise a color map.
 cmap = plt.get_cmap("gist_rainbow")
-# Initialise a colors matrix which dimensions (classes, colors per class, color channels)
+# Initialise a colors matrix with dimensions (classes, colors per class, color channels)
 colors = np.zeros((80, 3, 3))
 # Define the step size used to split the colormap into 80 regions.
 n = 1/80
@@ -160,6 +103,7 @@ np.random.shuffle(colors)
 frame_id = 0
 time_start = time.time()
 
+# Initialise a sting used for displaying a log message for the last recorded entry/exit of a vehicle.
 log_text = ""
 
 while True:
@@ -195,7 +139,7 @@ while True:
             class_id = np.argmax(scores)
             # Extract the score of that class.
             confidence = scores[class_id]
-            # If that score is higher than the set threshold, execute the code below.
+            # If that score is higher than the set threshold, execute the code in the "if" statement.
             if confidence > CONF_THRESH:
                 # Use the predicted box ratios to get box coordinates which apply to the input image.
                 center_x = int(detection[0] * width)
@@ -256,44 +200,52 @@ while True:
         # Draw the text on top of the box.
         cv2.putText(frame, text, (tl_x, tl_y - 10), FONT, FONT_SCALE, (255, 255, 255), FONT_THICKNESS)
 
-        '''
-        If the line formed by the centroid where the track was last detected and where it is currently detected
-        intersects with the predefined lines for counting, and the track hasn't been counted for passing this line
-        before, then count the track passing this line.
-        
-        Have a function in the track which if given a pass through line for the first time logs that as "from"
-        and when given a pass through a different line, logs that as "to".
-        
-        It doesn't count cars whose bounding boxes disappear for a bit.
-        '''
-
+        # Get the line segment defined by the centre of the track's bounding box from
+        # the previous frame and from the current one, and scale it by a factor of 5.
         scaled_line = scale(track.line, 5)
 
-        for i in range(len(count_lines)):
-            if intersects(count_lines[i], scaled_line):
-                if road_names[i] in (track.approach, track.exit):
+        # Iterate through the defined road lines.
+        for i in range(len(ROAD_LINES)):
+            # If a road line intersects with the scaled track line, execute the "if" statement.
+            if intersects(ROAD_LINES[i], scaled_line):
+                # If this track has already been recorded as passing through this line, move to the next iteration.
+                if ROAD_NAMES[i] in (track.approach, track.exit):
                     continue
-                track.passed_line(road_names[i])
+                # Tell the track object that the track has passed through this line.
+                track.passed_line(ROAD_NAMES[i])
+                # If the exit road of the track is empty, then the road line it just intersected corresponds
+                # to the road that the track entered the intersection from, so set log_text to this string.
                 if track.exit == '':
                     log_text = "{} {} entered from {}".format(class_name, track.track_id, track.approach)
+                # Otherwise, the road line it just intersected corresponds to the road that the track
+                # exited the intersection from, so execute the code in the "else" statement below.
                 else:
+                    # Set log_text to this string.
                     log_text = "{} {} exited from {}".format(class_name, track.track_id, track.exit)
+                    # Write a new row to the CSV file with the information for this track.
                     writer.writerow({'Id': track.track_id, 'Type': class_name, 'From': track.approach, 'Towards': track.exit})
+                    # Get a clean version of the current frame, with no extra drawing on top.
                     _, clean_frame = cap.read()
+                    # Get the image inside the bounding box of the track.
                     cropped_img = clean_frame[tl_y:br_y, tl_x:br_x]
+                    # Write that image in the counted_vehicles folder with
+                    # a name containing the vehicle type and track Id.
                     cv2.imwrite(r'counted_vehicles\{}_{}.png'.format(class_name, track.track_id), cropped_img)
 
-        cv2.line(frame, scaled_line[0], scaled_line[1], (255, 255, 255), 4)
+        # Uncomment the line below if you wish for the scaled lines used for detection to be displayed.
+        # cv2.line(frame, scaled_line[0], scaled_line[1], (255, 255, 255), 4)
 
-    # Draw a filled box where the detections will be displayed.
+    # Draw a filled box where the log_text will be displayed.
     cv2.rectangle(frame, (width - 260, height - 20), (width, height), (1, 1, 1), -1)
-    # Draw the text on top of the box.
-    cv2.putText(frame, log_text, (width - 255, height - 5), FONT, FONT_SCALE, (255, 255, 255),
-                FONT_THICKNESS)
+    # Draw the log_text on top of the box.
+    cv2.putText(frame, log_text, (width - 255, height - 5), FONT, FONT_SCALE, (255, 255, 255), FONT_THICKNESS)
 
-    for i in range(len(count_lines)):
-        cv2.line(frame, count_lines[i][0], count_lines[i][1], (200, 200, 0), 2)
-        cv2.putText(frame, str(i + 1), count_lines[i][0], FONT, FONT_SCALE, (255, 255, 255), FONT_THICKNESS)
+    # Display the defined road lines and road names.
+    for i in range(len(ROAD_LINES)):
+        cv2.line(frame, ROAD_LINES[i][0], ROAD_LINES[i][1], (200, 200, 0), 2)
+        # To avoid clutter, an Id is displayed for each road instead of its name.
+        # Replace "str(i + 1)" with "ROAD_NAMES[i]" to display the names of the roads instead.
+        cv2.putText(frame, str(i + 1), ROAD_LINES[i][0], FONT, FONT_SCALE, (255, 255, 255), FONT_THICKNESS)
 
     # If the write path is not blank, write the frame to the output video.
     if WRITE_PATH != '':
@@ -304,11 +256,11 @@ while True:
     # Calculate the average FPS performance to this point.
     fps = frame_id/elapsed_time
     # Display the FPS at the top left corner.
-    cv2.putText(frame, "FPS: " + str(round(fps, 2)), (8, 30), FONT, FONT_SCALE, (0, 0, 0), FONT_THICKNESS)
+    cv2.putText(frame, "FPS: " + str(round(fps, 2)), (8, 30), FONT, FONT_SCALE, (255, 255, 255), FONT_THICKNESS)
     # Show the frame.
     cv2.imshow("Video", frame)
     # Display mouse coordinates in the console when clicking on the video. Useful for determining line coordinates.
-    cv2.setMouseCallback('Video', onMouse)
+    cv2.setMouseCallback('Video', on_mouse)
     # Wait at least 1ms for key event and record the pressed key.
     key = cv2.waitKey(1)
     # If the pressed key is ESC (27), break the loop.
@@ -318,5 +270,5 @@ while True:
 # Release the capture object and destroy all windows.
 cap.release()
 cv2.destroyAllWindows()
-
+# Close the CSV file.
 csvfile.close()
