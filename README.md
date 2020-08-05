@@ -18,7 +18,7 @@ made by the authors of the paper. Some of the files have been altered to add nec
 ---
 
 The script is currently configured to work on a video of an intersection, logging into a CSV file each vehicle's Id, 
-type, name of the road that the vehicle approach the intersection from, and the name of the road that the
+type, name of the road that the vehicle approached the intersection from, and the name of the road that the
 vehicle exited the intersection from. Pictures of each detected vehicle are also stored in the "counted_vehicles"
 folder in the format: type_Id.png
 
@@ -47,13 +47,12 @@ __Resulting CSV file:__
 
 __Captured images:__
 
-![Image missing :(](https://i.imgur.com/CrqCiNS.png)
+![Image missing :(](https://i.imgur.com/RrLutdC.png)
 
 __Annotations of the same video made by a real person (CSV only):__
 
 ![Image missing :(](https://i.imgur.com/8mQsptr.png)
 
 All of the entries made by the algorithm are correct, but a few vehicles weren't logged due to the algorithm losing
-track of them while they were passing over the line of interest representing "road 1". This issue is most likely due
-to a tree and a traffic light obstructing the view in that region. The problem can be solved by improving the 
+track of them while they were passing over a line of interest representing one of the roads. The problem can be solved by improving the 
 tracking and detection algorithms.
