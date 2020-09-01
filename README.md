@@ -41,17 +41,13 @@ __The video being processed:__
 
 ![GIF missing :(](results.gif)
 
-__Resulting CSV file:__
+__Resulting CSV file (left) / CSV file annotated by a human (right):__
 
-![Image missing :(](https://i.imgur.com/zqxE7E1.png)
+![Image missing :(](https://i.imgur.com/z0YtHbV.jpg)
 
 __Captured images:__
 
-![Image missing :(](https://i.imgur.com/RrLutdC.png)
-
-__Annotations of the same video made by a real person (CSV only):__
-
-![Image missing :(](https://i.imgur.com/8mQsptr.png)
+![Image missing :(](https://i.imgur.com/yY8FEIQ.jpg)
 
 All of the entries made by the algorithm are correct, but a few vehicles weren't logged due to the algorithm losing
 track of them while they were passing over a line of interest representing one of the roads. The problem can be solved by improving the 

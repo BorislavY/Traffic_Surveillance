@@ -240,7 +240,7 @@ while True:
                     cv2.imwrite(r'counted_vehicles\{}_{}.png'.format(class_name, track.track_id), cropped_img)
 
         # Uncomment the line below if you wish for the scaled lines used for detection to be displayed.
-        cv2.line(frame, scaled_line[0], scaled_line[1], (255, 255, 255), 4)
+        cv2.line(frame, scaled_line[0], scaled_line[1], (255, 255, 255), 2)
 
     # Draw a filled box where the log_text will be displayed.
     cv2.rectangle(frame, (width - 260, height - 20), (width, height), (1, 1, 1), -1)
