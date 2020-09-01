@@ -8,6 +8,7 @@ from deep_sort import generate_detections as gdet
 import matplotlib.pyplot as plt
 import csv
 from utils import intersects, on_mouse, scale
+import os
 
 
 # Path to the video file. Leave blank to use the webcam.
@@ -46,6 +47,12 @@ fieldnames = ['Id', 'Type', 'From', 'Towards']
 # Create a writer object for the CSV file with the fieldnames and write them on the first row.
 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 writer.writeheader()
+
+# Delete all .png files, which might have been added by previously running the script,
+# from the "counted_vehicles" folder.
+filelist = [f for f in os.listdir("counted_vehicles") if f.endswith(".png")]
+for f in filelist:
+    os.remove(os.path.join("counted_vehicles", f))
 
 # Load the YOLOv3 model with OpenCV.
 net = cv2.dnn.readNet("yolov3/yolov3.weights", "yolov3/yolov3.cfg")
