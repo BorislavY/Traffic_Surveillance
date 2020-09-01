@@ -93,6 +93,12 @@ class Track:
         # A line which will be defined by the centre of the track's bounding box from
         # the previous update and from the current one.
         self.line = (0, 0), (0, 0)
+
+        # Get the initial position of the bounding box centre.
+        tl_x, tl_y, w, h = self.to_tlwh()
+        self.x_prev = tl_x + w/2
+        self.y_prev = tl_y + h/2
+
         # A string which will hold the name of the road that the vehicle approached from.
         self.approach = ''
         # A string which will hold the name of the road that the vehicle exited from.
@@ -159,11 +165,6 @@ class Track:
 
         """
 
-        # Get the centre of the object's bounding box before performing an update.
-        tl_x, tl_y, w, h = self.to_tlwh()
-        x_prev = tl_x + w/2
-        y_prev = tl_y + h/2
-
         self.mean, self.covariance = kf.update(
             self.mean, self.covariance, detection.to_xyah())
         self.features.append(detection.feature)
@@ -179,14 +180,17 @@ class Track:
         self.prev_classes.insert(0, self.class_name)
         self.class_name = max(set(self.prev_classes), key=self.prev_classes.count)
 
-        # Get the centre of the object's bounding box after performing an update.
-        tl_x, tl_y, w, h = self.to_tlwh()
-        x_current = tl_x + w/2
-        y_current = tl_y + h/2
-
-        # Update the line which is defined by the centre of the track's bounding box from
-        # the previous update and from the current one.
-        self.line = (int(x_prev), int(y_prev)), (int(x_current), int(y_current))
+        # Every 5 updates update the track line.
+        if self.hits % 5 == 0:
+            # Get the current centre of the object's bounding box.
+            tl_x, tl_y, w, h = self.to_tlwh()
+            x_current = tl_x + w/2
+            y_current = tl_y + h/2
+            # Update the line which is defined by the centre of the track's bounding box from
+            # 5 updates ago and from the current one.
+            self.line = (int(self.x_prev), int(self.y_prev)), (int(x_current), int(y_current))
+            self.x_prev = x_current
+            self.y_prev = y_current
 
     def mark_missed(self):
         """Mark this track as missed (no association at the current time step).

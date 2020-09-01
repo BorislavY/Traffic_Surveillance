@@ -202,7 +202,7 @@ while True:
 
         # Get the line segment defined by the centre of the track's bounding box from
         # the previous frame and from the current one, and scale it by a factor of 5.
-        scaled_line = scale(track.line, 5)
+        scaled_line = scale(track.line, 2)
 
         # Iterate through the defined road lines.
         for i in range(len(ROAD_LINES)):
@@ -233,7 +233,7 @@ while True:
                     cv2.imwrite(r'counted_vehicles\{}_{}.png'.format(class_name, track.track_id), cropped_img)
 
         # Uncomment the line below if you wish for the scaled lines used for detection to be displayed.
-        # cv2.line(frame, scaled_line[0], scaled_line[1], (255, 255, 255), 4)
+        cv2.line(frame, scaled_line[0], scaled_line[1], (255, 255, 255), 4)
 
     # Draw a filled box where the log_text will be displayed.
     cv2.rectangle(frame, (width - 260, height - 20), (width, height), (1, 1, 1), -1)
