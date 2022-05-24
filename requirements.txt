@@ -40,7 +40,7 @@ scipy==1.4.1
 seaborn==0.10.1
 six==1.15.0
 tensorboard==2.1.1
-tensorflow-gpu==2.1.0
+tensorflow-gpu==2.6.4
 tensorflow-gpu-estimator==2.1.0
 termcolor==1.1.0
 tornado==6.0.4
