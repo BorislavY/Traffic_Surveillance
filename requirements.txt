@@ -21,7 +21,7 @@ matplotlib @ file:///C:/ci/matplotlib-base_1592846084747/work
 mkl-fft==1.1.0
 mkl-random==1.1.1
 mkl-service==2.3.0
-numpy==1.18.5
+numpy==1.22.0
 oauthlib==3.1.0
 opencv-python==4.3.0.36
 opt-einsum==3.2.1
